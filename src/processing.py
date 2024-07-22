@@ -107,12 +107,27 @@ def is_word_correct(word: str) -> bool:
     Returns:
         bool: True if the word consists of only alphabetic characters, False otherwise.
     """
-    pattern = r'^[A-Za-z]+$'
+    pattern = r"^'?[A-Za-z']+$"
     return re.search(pattern, word) is not None
+
+def remove_duplicate_letters(word: str) -> str:
+    """
+    Removes duplicate letters from a word.
+
+    Args:
+        word (str): The input word.
+
+    Returns:
+        str: The word with duplicate letters removed.
+    """
+    word = re.sub(r'(.)\1+', r'\1\1', word)
+
+    return word
 
 def extract_correct_words(words: list) -> list:
     """
-    Extracts the correct words from a list of words.
+    Extracts the correct words from a list of words, replaces specific contractions
+    and removes duplicate letters (more than 2).
     
     Args:
         words (list): A list of words.
@@ -122,7 +137,14 @@ def extract_correct_words(words: list) -> list:
     """
     correct_words = [word for word in words if is_word_correct(word)]
 
+    mapping = {"'s": "is", "ca": "can", "n't": "not", "'ll": "will", "'m": "am", "u": "you"}
+
+    correct_words = [mapping.get(word, word) for word in correct_words]
+    correct_words = [remove_duplicate_letters(word) for word in correct_words]
+
     return correct_words
+
+import re
 
 def remove_stop_words(words: list) -> list:
     """
@@ -166,7 +188,8 @@ def process_tweet(tweet: str) -> list:
     """
     cleaned_tweet = clean_text(tweet)
     words = tokenize(cleaned_tweet)
-    words_filtered = remove_stop_words(words)
+    words_extracted = extract_correct_words(words)
+    words_filtered = remove_stop_words(words_extracted)
     words_stemmed = stem_words(words_filtered)
 
     return words_stemmed
@@ -191,4 +214,4 @@ def create_dictionary(tweets: pd.Series) -> dict:
             else:
                 words_dict[word] += 1
     
-    return words_dict
+    return words_dict 
