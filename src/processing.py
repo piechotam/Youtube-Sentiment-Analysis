@@ -1,9 +1,10 @@
 import re
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from nltk import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+from nltk.stem import PorterStemmer, WordNetLemmatizer
 
 def read_and_split(path: str) -> tuple:
     """
@@ -20,16 +21,17 @@ def read_and_split(path: str) -> tuple:
             - y_test: The testing labels.
     """
     try:
-        df = pd.read_csv(path, encoding='ISO-8859-1', usecols=[0, 2, 5], header=0, names=['target', 'date', 'text'])
+        df = pd.read_csv(path, encoding='ISO-8859-1', usecols=[0, 5], header=0, names=['target', 'text'])
     except Exception as e:
         raise ValueError(f"Error reading the CSV file: {e}")
 
     df_train, df_test = train_test_split(df, test_size=0.2, random_state=21)
+    df_train, df_valid = train_test_split(df_train, test_size=0.2, random_state=21)
 
-    y_train, y_test = df_train['target'], df_test['target']
-    X_train, X_test = df_train.drop(columns='target'), df_test.drop(columns='target')
+    y_train, y_valid, y_test = df_train['target'], df_valid['target'], df_test['target']
+    X_train, X_valid, X_test = df_train['text'], df_valid['text'], df_test['text']
 
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_valid, y_valid, X_test, y_test
 
 def replace_emojis(text: str) -> str:
     """
@@ -53,12 +55,13 @@ def replace_emojis(text: str) -> str:
     text = re.sub(r'(:\s?\(|:-\(|\)\s?:|\)-:)', ' EMO_NEG ', text)
     # Cry -- :,(, :'(, :"(
     text = re.sub(r'(:,\(|:\'\(|:"\()', ' EMO_NEG ', text)
-    
+
     return text
 
 def clean_text(text: str) -> str:
     """
-    Process the given text by transforming it to lowercase, replacing emojis, removing mentions and URLs, and replacing multiple spaces with a single space.
+    Process the given text by transforming it to lowercase, replacing emojis, mentions and URLs, 
+    replacing multiple spaces with a single space and fixing common typos.
 
     Args:
         text (str): The text to be processed.
@@ -66,17 +69,13 @@ def clean_text(text: str) -> str:
     Returns:
         str: The processed text.
     """
-    # transform to lowercase
-    text = text.lower()
-    # replace emojis
     text = replace_emojis(text)
-    # remove mentions
-    text = re.sub(r'@[\S]+', '', text)
-    # remove hashtags
-    text = re.sub(r'#[\S]+', '', text)
-    # remove urls
-    text = re.sub(r'((www\.[\S]+)|(https?://[\S]+))', '', text)
-    # replace multiple spaces with single space
+    text = text.lower()
+    text = re.sub(r'@[\S]+', 'USR_MEN', text)
+    text = re.sub(r'#[\S]+', 'HASH', text)
+    text = re.sub(r'((www\.[\S]+)|(https?://[\S]+))', 'URL', text)
+    # Remove &...; which is used in our dataset for example for quotations: &quot;
+    text = re.sub(r'&.*?;', '', text)
     text = re.sub(r'\s+', ' ', text)
 
     return text
@@ -95,11 +94,9 @@ def tokenize(text: str) -> list:
     
     return words
 
-import re
-
 def is_word_correct(word: str) -> bool:
     """
-    Check if a word consists of only alphabetic characters.
+    Check if a word consists of only expected characters.
 
     Args:
         word (str): The word to be checked.
@@ -107,7 +104,7 @@ def is_word_correct(word: str) -> bool:
     Returns:
         bool: True if the word consists of only alphabetic characters, False otherwise.
     """
-    pattern = r"^'?[A-Za-z']+$"
+    pattern = r"^(?=.*[A-Za-z])'?[A-Za-z'-_]+$"
     return re.search(pattern, word) is not None
 
 def remove_duplicate_letters(word: str) -> str:
@@ -136,15 +133,9 @@ def extract_correct_words(words: list) -> list:
         list: A list of correct words.
     """
     correct_words = [word for word in words if is_word_correct(word)]
-
-    mapping = {"'s": "is", "ca": "can", "n't": "not", "'ll": "will", "'m": "am", "u": "you"}
-
-    correct_words = [mapping.get(word, word) for word in correct_words]
     correct_words = [remove_duplicate_letters(word) for word in correct_words]
 
     return correct_words
-
-import re
 
 def remove_stop_words(words: list) -> list:
     """
@@ -156,12 +147,39 @@ def remove_stop_words(words: list) -> list:
     Returns:
         list: A list of words with stop words removed.
     """
+    # we remove not from set of stopwords - it might carry some valuable information in our usecase
     stop_words = set(stopwords.words('english'))
+    stop_words.remove('not')
     filtered_words = [word for word in words if not word in stop_words]
 
     return filtered_words
 
-def stem_words(words: list) -> list:
+def extract_lemma(words: list, retriever, pos_tags=None) -> list:
+    """
+    Extracts the lemma or stem of words using the provided retriever.
+    
+    Args:
+        words (list): A list of words to be processed.
+        retriever: An instance implementing stem or lemmatize function.
+        pos_tags (list, optional): A list of part-of-speech tags corresponding to the words for lemmatization.
+        
+    Returns:
+        list: A list of processed words (either stemmed or lemmatized).
+    
+    Raises:
+        TypeError: If the retriever is not an instance of PorterStemmer or WordNetLemmatizer.
+    """
+    if hasattr(retriever, 'stem'):
+        return [retriever.stem(word) for word in words]
+    elif hasattr(retriever, 'lemmatize'):
+        if pos_tags:
+            return [retriever.lemmatize(word, pos) for word, pos in zip(words, pos_tags)]
+        else:
+            return [retriever.lemmatize(word) for word in words]
+    else:
+        raise TypeError('Retriever must have a stem or lemmatize method!')
+    
+def stem_words(words: list, porter_stemmer: PorterStemmer) -> list:
     """
     Stem the given list of words using Porter Stemmer algorithm.
     
@@ -171,12 +189,25 @@ def stem_words(words: list) -> list:
     Returns:
         list: A list of stemmed words.
     """
-    porter_stemmer = PorterStemmer()
     stemmed_words = [porter_stemmer.stem(word) for word in words]
  
     return stemmed_words
 
-def process_tweet(tweet: str) -> list:
+def lemmatize_words(words: list, lemmatizer: WordNetLemmatizer) -> list:
+    """
+    Lemmatize the given list of words using WordNetLemmatizer.
+    
+    Args:
+        words (list): A list of words to be stemmed.
+        
+    Returns:
+        list: A list of stemmed words.
+    """
+    lemmatized_words = [lemmatizer.lemmatize(word) for word in words]
+
+    return lemmatized_words
+
+def process_tweet(tweet: str, retriever) -> list:
     """
     Process a tweet by cleaning, tokenizing, removing stop words, and stemming the words.
 
@@ -190,7 +221,7 @@ def process_tweet(tweet: str) -> list:
     words = tokenize(cleaned_tweet)
     words_extracted = extract_correct_words(words)
     words_filtered = remove_stop_words(words_extracted)
-    words_stemmed = stem_words(words_filtered)
+    words_stemmed = extract_lemma(words_filtered, retriever)
 
     return words_stemmed
 
@@ -214,4 +245,4 @@ def create_dictionary(tweets: pd.Series) -> dict:
             else:
                 words_dict[word] += 1
     
-    return words_dict 
+    return words_dict
