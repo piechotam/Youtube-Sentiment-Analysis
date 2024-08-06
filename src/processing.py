@@ -1,37 +1,9 @@
 import re
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from nltk import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer, WordNetLemmatizer
-
-def read_and_split(path: str) -> tuple:
-    """
-    Read the data from a CSV file, split it into training and testing sets, and return the split datasets.
-
-    Args:
-        path (str): The path to the CSV file.
-
-    Returns:
-        tuple: A tuple containing the training and testing datasets in the following order:
-            - X_train: The training features.
-            - y_train: The training labels.
-            - X_test: The testing features.
-            - y_test: The testing labels.
-    """
-    try:
-        df = pd.read_csv(path, encoding='ISO-8859-1', usecols=[0, 5], header=0, names=['target', 'text'])
-    except Exception as e:
-        raise ValueError(f"Error reading the CSV file: {e}")
-
-    df_train, df_test = train_test_split(df, test_size=0.2, random_state=21)
-    df_train, df_valid = train_test_split(df_train, test_size=0.2, random_state=21)
-
-    y_train, y_valid, y_test = df_train['target'], df_valid['target'], df_test['target']
-    X_train, X_valid, X_test = df_train['text'], df_valid['text'], df_test['text']
-
-    return X_train, y_train, X_valid, y_valid, X_test, y_test
 
 def replace_emojis(text: str) -> str:
     """
