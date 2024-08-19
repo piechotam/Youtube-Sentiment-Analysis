@@ -1,5 +1,6 @@
 import re
-from nltk.stem import PorterStemmer
+from sklearn.base import BaseEstimator, TransformerMixin
+
 from processing import clean_text, tokenize, extract_correct_words, remove_stop_words, extract_lemma
 
 replacement_patterns = [
@@ -74,3 +75,13 @@ class TweetProcessor:
         words_stemmed = extract_lemma(words_filtered, self.retriever)
 
         return ' '.join(words_stemmed)
+
+class TweetProcessorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, tweet_processor):
+        self.tweet_processor = tweet_processor
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        return X.apply(self.tweet_processor.process_tweet)
