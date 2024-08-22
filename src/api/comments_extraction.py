@@ -2,8 +2,7 @@ import requests
 import time
 import pandas as pd
 
-
-def extract_video_comments(API_KEY: str, VIDEO_ID: str, order: str, n=100) -> pd.DataFrame:
+def extract_video_comments(API_KEY: str, VIDEO_ID: str, order: str, n=100) -> pd.Series:
     """
     Returns a DataFrame of n (default 100) comments from a video 
     with the provided VIDEO_ID and API_KEY.
@@ -44,7 +43,7 @@ def extract_video_comments(API_KEY: str, VIDEO_ID: str, order: str, n=100) -> pd
         
         for item in data.get('items', []):
             item_details = item['snippet']['topLevelComment']['snippet']
-            comments.append({'date': item_details['publishedAt'], 'text': item_details['textDisplay']})
+            comments.append(item_details['textDisplay'])
             total_fetched += 1
             if total_fetched >= n:
                 break
@@ -54,13 +53,13 @@ def extract_video_comments(API_KEY: str, VIDEO_ID: str, order: str, n=100) -> pd
 
         params['pageToken'] = data['nextPageToken']
     
-    df = pd.DataFrame(comments)
-    return df
+    series = pd.Series(comments)
+    return series
 
 if __name__ == '__main__':
     # testing
     API_KEY = 'AIzaSyCU5HvKL7_pZtcT8oCsj2N56gifJJfCiQo'
     VIDEO_ID = 'fklHBWow8vE'
 
-    df = extract_video_comments(API_KEY, VIDEO_ID, order='relevance')
-    print(df.head())
+    series = extract_video_comments(API_KEY, VIDEO_ID, order='relevance')
+    print(series.head())
