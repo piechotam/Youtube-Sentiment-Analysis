@@ -83,7 +83,7 @@ def test_models(models_to_test: list, X_train, y_train, X_valid, y_valid) -> dic
         y_pred = model.predict(X_valid)
         pred_time = time.time() - start
 
-        print(f'Fitting time: {fitting_time}\nPrediction time: {pred_time}')
+        print(f'Fitting time: {round(fitting_time, 2)}\nPrediction time: {round(pred_time, 2)}')
 
         performance[model_name] = {
             'Accuracy': accuracy_score(y_valid, y_pred),
@@ -110,7 +110,7 @@ def print_performance(performance: dict) -> None:
     for model_name, metrics_dict in performance.items():
         print(f'================{model_name}================')
         for metric, value in metrics_dict.items():
-            print(f'{metric}: {round(value, 4)}')
+            print(f'{metric}: {round(value, 2)}')
         
 def hyperparameters_tuning(param_grid: dict, model, folds: int, param_comb: int, X, y, use_random_search: bool = True) -> None:
     """
